@@ -1788,12 +1788,15 @@ function simulate() {
     }
 
     // 現金クッション処理
+    let cushionDrawn = 0;
+    let cushionAdded = 0;
     if (cushionEnabled && cushionTargetVal > 0) {
       if (effectiveCashflow < 0) {
         // CFがマイナスなら株価に関わらずクッションから補填（投資資産を守る）
         const fromCushion = Math.min(cashCushion, -effectiveCashflow);
         cashCushion      -= fromCushion;
         effectiveCashflow += fromCushion;
+        cushionDrawn      = fromCushion;
       }
       if (effectiveReturnRate >= 0 && cashCushion < cushionTargetVal) {
         // プラス年: リターン規模に応じた上限で段階的補充
@@ -1809,6 +1812,7 @@ function simulate() {
         if (asset > sellAmount) {
           cashCushion       += replenish;
           effectiveCashflow -= sellAmount;
+          cushionAdded       = replenish;
         }
       }
     }
@@ -1848,6 +1852,8 @@ function simulate() {
       year: calYear,
       asset:            Math.round(asset),
       cushion:          Math.round(cashCushion),
+      cushionDrawn:     Math.round(cushionDrawn),
+      cushionAdded:     Math.round(cushionAdded),
       income:           Math.round(income),
       expense:          Math.round(effectiveExpense),
       eduCost:          Math.round(eduCost),
@@ -2173,7 +2179,13 @@ function updateChart(ages, principalData, gainData, target4pct, targetShort, fir
               label: item => {
                 const ds = item.chart.data.datasets;
                 if (item.datasetIndex === 2 && !ds[2].hidden) {
-                  return `  現金クッション: ${formatMan(item.raw)}`;
+                  const lines = [`  現金クッション残高: ${formatMan(item.raw)}`];
+                  const row = tableRows[item.dataIndex];
+                  if (row) {
+                    if (row.cushionDrawn > 0) lines.push(`  取崩し: -${formatMan(row.cushionDrawn)}`);
+                    if (row.cushionAdded > 0) lines.push(`  補充: +${formatMan(row.cushionAdded)}`);
+                  }
+                  return lines;
                 }
                 if (item.datasetIndex === 1) {
                   const p = ds[0].data[item.dataIndex] || 0;
@@ -2311,8 +2323,18 @@ function updateAssetTable(rows, fireAge, fullFireAge) {
     const cfCls = r.cashflow    >= 0 ? 'pos right' : 'neg right';
     const acCls = r.assetChange >= 0 ? 'pos right' : 'neg right';
     const label = r.isFire ? ' 🔥' : r.isFullFire ? ' ✅' : r.isPension ? ' 🎌' : '';
-    const cushionCell = cushionEnabled
-      ? `<td class="right" style="color:var(--accent-orange)">${fmtNum(r.cushion)}</td>`
+    const cushionMovement = cushionEnabled
+      ? (() => {
+          const drawn = r.cushionDrawn || 0;
+          const added = r.cushionAdded || 0;
+          if (drawn > 0 && added > 0) return `<span style="color:var(--accent-red)">-${fmtNum(drawn)}</span><br><span style="color:var(--accent-green)">+${fmtNum(added)}</span>`;
+          if (drawn > 0) return `<span style="color:var(--accent-red)">-${fmtNum(drawn)}</span>`;
+          if (added > 0) return `<span style="color:var(--accent-green)">+${fmtNum(added)}</span>`;
+          return '―';
+        })()
+      : '';
+    const cushionMovementCell = cushionEnabled
+      ? `<td class="right" style="font-size:11px">${cushionMovement}</td>`
       : '';
     return `<tr class="${cls}">
       <td>${r.age}歳${label}<div style="font-size:10px;color:var(--text-muted);font-weight:400;">${r.year}年</div></td>
@@ -2325,6 +2347,7 @@ function updateAssetTable(rows, fireAge, fullFireAge) {
       <td class="${cfCls}">${fmtSign(r.cashflow)}</td>
       <td class="right" style="color:var(--accent-teal)">${fmtNum(r.investmentReturn)}</td>
       <td class="${acCls}">${fmtSign(r.assetChange)}</td>
+      ${cushionMovementCell}
     </tr>`;
   }).join('');
 
@@ -2342,6 +2365,7 @@ function updateAssetTable(rows, fireAge, fullFireAge) {
           <th title="FIRE前: 手取り−生活費−教育費−積立 / SideFIRE: 副収入−生活費−教育費 / 65歳〜: +年金">CF(万)</th>
           <th>利回り益(万)</th>
           <th>前年比(万)</th>
+          ${cushionEnabled ? '<th title="クッション取崩し(赤) / 補充(緑)">クッション(万)</th>' : ''}
         </tr>
       </thead>
       <tbody>${trs}</tbody>
