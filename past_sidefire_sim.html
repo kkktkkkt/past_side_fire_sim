@@ -1894,6 +1894,33 @@ function buildAnnotations(ages, target4pct, targetShort, fireAge, fullFireAge, c
     };
   });
 
+  // 暴落イベントのボックス（シミュレーション期間と重なる場合のみ）
+  CRASH_EVENTS.forEach((ev, i) => {
+    const crashStartAge = currentAge + (ev.start - simStartYear);
+    const crashEndAge   = currentAge + (ev.end   - simStartYear);
+    if (crashEndAge < ages[0] || crashStartAge > ages[ages.length - 1]) return;
+    const clampedStart = Math.max(crashStartAge, ages[0]);
+    const clampedEnd   = Math.min(crashEndAge,   ages[ages.length - 1]);
+    // 大学ボックスと同じくインデックス指定（age値ではない）
+    const xMinIdx = ages.indexOf(clampedStart);
+    const xMaxIdx = ages.indexOf(clampedEnd);
+    if (xMinIdx < 0 || xMaxIdx < 0) return;
+    const isMajor = [1929, 2000, 2008].includes(ev.start);
+    const bg  = isMajor ? 'rgba(248,81,73,0.12)' : 'rgba(210,153,34,0.12)';
+    const bdr = isMajor ? 'rgba(248,81,73,0.45)' : 'rgba(210,153,34,0.45)';
+    const lbl = isMajor ? 'rgba(248,81,73,0.9)'  : 'rgba(210,153,34,0.9)';
+    ann[`crash_${i}`] = {
+      type: 'box', xMin: xMinIdx, xMax: xMaxIdx + 1,
+      backgroundColor: bg, borderColor: bdr, borderWidth: 1,
+      label: {
+        display: true, content: ev.label,
+        position: { x: 'center', y: 'start' },
+        color: lbl, font: { size: 9, weight: 'bold' },
+        backgroundColor: 'transparent', padding: { y: 2 }
+      }
+    };
+  });
+
   return ann;
 }
 

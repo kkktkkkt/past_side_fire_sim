@@ -4,8 +4,9 @@
     {
       "name": "SideFIRE Simulator",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "3000", "--directory", "F:/prog/SideFire_Sim"],
-      "port": 3000
+      "runtimeArgs": ["-m", "http.server", "--directory", "F:/prog/Past_SideFire_Sim"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
