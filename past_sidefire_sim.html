@@ -1505,7 +1505,7 @@ function renderSP500Chart() {
   CRASH_EVENTS.forEach((ev, i) => {
     crashAnn[`crash${i}`] = {
       type: 'box',
-      xMin: String(ev.start), xMax: String(ev.end),
+      xMin: String(ev.start), xMax: String(ev.end === ev.start ? ev.end + 1 : ev.end),
       yMin: -55, yMax: 60,
       backgroundColor: ev.color,
       borderWidth: 0,
