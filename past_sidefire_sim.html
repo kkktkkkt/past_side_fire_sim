@@ -1762,8 +1762,8 @@ function simulate() {
 
   // バナー
   const banner = document.getElementById('banner');
-  const shortAchievedBefore = achieveShortAge !== null && achieveShortAge <= fireAge;
-  const fullAchievedBefore  = achieve4Age     !== null && achieve4Age     <= fireAge;
+  const shortAchievedBefore = achieveShortAge !== null;
+  const fullAchievedBefore  = achieve4Age     !== null;
   if (targetShort === 0) {
     banner.className = 'banner show success';
     banner.textContent = '🎉 SideFIRE後の収入が生活費を上回っています！資産取り崩し不要';
