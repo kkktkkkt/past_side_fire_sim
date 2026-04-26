@@ -464,6 +464,31 @@
         <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">ONで取り崩し額を1.25倍（税20%を考慮）</div>
       </div>
       <div class="form-group">
+        <label>現金クッション</label>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+          <div id="cushionToggle" onclick="toggleCushion()"
+               style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+            <div id="cushionIndicator" style="width:36px;height:20px;border-radius:10px;background:var(--bg-tertiary);border:1px solid var(--border-light);position:relative;transition:background 0.2s;">
+              <div id="cushionThumb" style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--text-muted);transition:all 0.2s;"></div>
+            </div>
+            <span id="cushionLabel" style="font-size:12px;color:var(--text-secondary);">OFF（クッションなし）</span>
+          </div>
+        </div>
+        <div id="cushionControls" style="display:none;margin-top:8px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <label style="font-size:12px;color:var(--text-secondary);flex:1;">目標残高</label>
+            <input type="number" id="cushionTarget" value="200" min="50" max="5000" step="50"
+              oninput="simulate()"
+              style="width:80px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);padding:4px 8px;border-radius:4px;font-size:13px;text-align:right;">
+            <span style="font-size:12px;color:var(--text-muted);">万円</span>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.5;">
+            マイナス年は投資を守りクッションから支出。<br>
+            プラス年に段階的に補充（5%未満: 3ヶ月/年、5〜15%: 6ヶ月/年、15%超: 12ヶ月/年）
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
         <label style="display:flex;align-items:center;gap:6px;">
           暴落シミュレーション
           <span style="font-size:10px;color:var(--accent-orange);">モンテカルロ</span>
@@ -620,7 +645,15 @@
     <!-- Chart -->
     <div class="chart-panel">
       <div class="chart-panel-header">
-        <div class="chart-title">資産推移シミュレーション</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="chart-title">資産推移シミュレーション</div>
+          <button id="yAxisLockBtn" onclick="toggleYAxisLock()"
+            title="縦軸を固定/解除"
+            style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border-light);
+                   background:var(--bg-tertiary);color:var(--text-secondary);cursor:pointer;white-space:nowrap;">
+            🔓 縦軸フリー
+          </button>
+        </div>
         <div class="chart-legend">
           <div class="legend-item"><div class="legend-dot" style="background:#388bfd"></div><span>累積元本</span></div>
           <div class="legend-item"><div class="legend-dot" style="background:#2dd4bf"></div><span>運用益</span></div>
@@ -943,6 +976,8 @@ function saveToStorage() {
       fullFireAge:    document.getElementById('fullFireAge').value,
       livingCostRatio65: document.querySelector('input[name="livingCostRatio65"]:checked')?.value || '1.00',
       withdrawalTaxEnabled: withdrawalTaxEnabled,
+      cushionEnabled: cushionEnabled,
+      cushionTarget: document.getElementById('cushionTarget').value,
       crashEnabled: crashEnabled,
       crashProb:    document.getElementById('crashProb').value,
       crashMag:     document.getElementById('crashMag').value,
@@ -991,6 +1026,14 @@ function loadFromStorage() {
     if (d.withdrawalTaxEnabled) {
       withdrawalTaxEnabled = false;
       toggleWithdrawalTax();
+    }
+    if (d.cushionEnabled) {
+      cushionEnabled = false;
+      toggleCushion();
+    }
+    if (d.cushionTarget !== undefined) {
+      const ct = document.getElementById('cushionTarget');
+      if (ct) ct.value = d.cushionTarget;
     }
     if (d.crashEnabled) {
       if (d.crashProb) { document.getElementById('crashProb').value = d.crashProb; document.getElementById('crashProbVal').textContent = d.crashProb + '%'; }
@@ -1223,7 +1266,10 @@ function getEduCostForYear(year, currentAge) {
 //  税金計算・暴落シミュレーション グローバル
 // ============================================================
 let withdrawalTaxEnabled = false;
+let cushionEnabled = false;
 let crashEnabled = false;
+let yAxisLocked = false;
+let yAxisLockedMax = null;
 let recoveryEnabled = false;  // 暴落後回復ブースト
 
 function updateCrashHint() {
@@ -1411,6 +1457,46 @@ function toggleWithdrawalTax() {
     thumb.style.background = 'var(--text-muted)';
     label.textContent = 'OFF（税なし）';
     label.style.color = 'var(--text-secondary)';
+  }
+  simulate();
+}
+
+function toggleYAxisLock() {
+  yAxisLocked = !yAxisLocked;
+  const btn = document.getElementById('yAxisLockBtn');
+  if (yAxisLocked) {
+    btn.textContent = '🔒 縦軸固定';
+    btn.style.color = 'var(--accent-orange)';
+    btn.style.borderColor = 'var(--accent-orange)';
+  } else {
+    yAxisLockedMax = null;
+    btn.textContent = '🔓 縦軸フリー';
+    btn.style.color = 'var(--text-secondary)';
+    btn.style.borderColor = 'var(--border-light)';
+    simulate();
+  }
+}
+
+function toggleCushion() {
+  cushionEnabled = !cushionEnabled;
+  const ind   = document.getElementById('cushionIndicator');
+  const thumb = document.getElementById('cushionThumb');
+  const lbl   = document.getElementById('cushionLabel');
+  const ctrl  = document.getElementById('cushionControls');
+  if (cushionEnabled) {
+    ind.style.background = 'var(--accent-orange)';
+    thumb.style.left = '18px';
+    thumb.style.background = '#fff';
+    lbl.textContent = 'ON';
+    lbl.style.color = 'var(--accent-orange)';
+    ctrl.style.display = 'block';
+  } else {
+    ind.style.background = 'var(--bg-tertiary)';
+    thumb.style.left = '2px';
+    thumb.style.background = 'var(--text-muted)';
+    lbl.textContent = 'OFF（クッションなし）';
+    lbl.style.color = 'var(--text-secondary)';
+    ctrl.style.display = 'none';
   }
   simulate();
 }
@@ -1644,13 +1730,17 @@ function simulate() {
   const targetShort  = shortfallAnn > 0 ? shortfallAnn * 25 : 0;
 
   const endAge = 100;
+  const cushionTargetVal = cushionEnabled ? getNum('cushionTarget', 200) : 0;
+
   const ages = [];
   const principalData = [];
   const gainData      = [];
+  const cushionData   = [];
   const tableRows     = [];
 
   let asset               = currentAssets;
   let cumulativePrincipal = currentAssets;
+  let cashCushion         = cushionTargetVal;
   let achieve4Age     = null;
   let achieveShortAge = null;
 
@@ -1697,6 +1787,32 @@ function simulate() {
       effectiveCashflow = effectiveCashflow / 0.8;
     }
 
+    // 現金クッション処理
+    if (cushionEnabled && cushionTargetVal > 0) {
+      if (effectiveReturnRate < 0 && effectiveCashflow < 0) {
+        // マイナス年: クッションから補填し投資資産の売却を抑制
+        const fromCushion = Math.min(cashCushion, -effectiveCashflow);
+        cashCushion      -= fromCushion;
+        effectiveCashflow += fromCushion;
+      } else if (effectiveReturnRate >= 0 && cashCushion < cushionTargetVal) {
+        // プラス年: リターン規模に応じた上限で段階的補充
+        const annualExpForCushion = monthlyExpense * 12;
+        const replenishCap = effectiveReturnRate >= 0.15
+          ? annualExpForCushion           // 12ヶ月分
+          : effectiveReturnRate >= 0.05
+            ? annualExpForCushion * 0.5   // 6ヶ月分
+            : annualExpForCushion * 0.25; // 3ヶ月分
+        const replenish = Math.min(cushionTargetVal - cashCushion, replenishCap);
+        // 取り崩し税を考慮（投資からの売却なので）
+        const sellAmount = (withdrawalTaxEnabled && asset > 0) ? replenish / 0.8 : replenish;
+        if (asset > sellAmount) {
+          cashCushion       += replenish;
+          effectiveCashflow -= sellAmount;
+        }
+      }
+    }
+    cushionData.push(Math.round(cashCushion));
+
     // 資産更新（年複利）
     const prevAsset = asset;
     const investmentReturn = Math.round(prevAsset * effectiveReturnRate);
@@ -1717,12 +1833,12 @@ function simulate() {
     principalData.push(Math.round(principal));
     gainData.push(Math.round(gain));
 
-    if (achieve4Age     === null && asset >= target4pct)                      achieve4Age     = age;
-    if (achieveShortAge === null && targetShort > 0 && asset >= targetShort)  achieveShortAge = age;
+    const totalAsset = asset + cashCushion;
+    if (achieve4Age     === null && totalAsset >= target4pct)                      achieve4Age     = age;
+    if (achieveShortAge === null && targetShort > 0 && totalAsset >= targetShort)  achieveShortAge = age;
 
     // 明細テーブル用（収入は手取り表示）
     const income = age < fireAge ? afterTaxIncome : effectiveSideIncome;
-    // FIRE前のCF表示: 手取り − 生活費 − 教育費 − 積み立て（積み立ては収入からの支出）
     const displayCashflow = age < fireAge
       ? Math.round(afterTaxIncome - effectiveExpense - eduCost - annualSavings)
       : Math.round(effectiveCashflow);
@@ -1730,6 +1846,7 @@ function simulate() {
       age,
       year: calYear,
       asset:            Math.round(asset),
+      cushion:          Math.round(cashCushion),
       income:           Math.round(income),
       expense:          Math.round(effectiveExpense),
       eduCost:          Math.round(eduCost),
@@ -1745,7 +1862,7 @@ function simulate() {
   }
 
   const totalEdu   = children.reduce((s, c) => s + getTotalEduCostForChild(c), 0);
-  const finalAsset = principalData.at(-1) + gainData.at(-1);
+  const finalAsset = principalData.at(-1) + gainData.at(-1) + (cushionData.at(-1) || 0);
 
   // カード更新
   document.getElementById('card-target4').textContent = formatMan(target4pct);
@@ -1800,7 +1917,7 @@ function simulate() {
     banner.textContent = existing + `　｜　⚠ 暴落シナリオ: 資産枯渇リスク ${ruinPct}%`;
   }
 
-  updateChart(ages, principalData, gainData, target4pct, targetShort, fireAge, fullFireAge, currentAge, crashData);
+  updateChart(ages, principalData, gainData, target4pct, targetShort, fireAge, fullFireAge, currentAge, crashData, cushionData);
   updateEduTable(currentAge);
   updateAssetTable(tableRows, fireAge, fullFireAge);
   saveToStorage();
@@ -1958,7 +2075,7 @@ function makeCrashDatasets() {
   ];
 }
 
-function updateChart(ages, principalData, gainData, target4pct, targetShort, fireAge, fullFireAge, currentAge, crashData = null) {
+function updateChart(ages, principalData, gainData, target4pct, targetShort, fireAge, fullFireAge, currentAge, crashData = null, cushionData = null) {
   const ctx = document.getElementById('assetChart').getContext('2d');
 
   // ── 表示範囲フィルタ（chartMaxAge までに切り取る）──
@@ -1967,6 +2084,7 @@ function updateChart(ages, principalData, gainData, target4pct, targetShort, fir
   const dispAges      = ages.slice(0, dispLen);
   const dispPrincipal = principalData.slice(0, dispLen);
   const dispGain      = gainData.slice(0, dispLen);
+  const dispCushion   = cushionData ? cushionData.slice(0, dispLen) : null;
   const dispCrash     = crashData ? {
     p90: crashData.p90.slice(0, dispLen),
     p50: crashData.p50.slice(0, dispLen),
@@ -1991,32 +2109,36 @@ function updateChart(ages, principalData, gainData, target4pct, targetShort, fir
     };
   }
 
-  // ── y / y2 の共通 max を手動計算（syncAxes プラグイン廃止）──
-  // afterDataLimits はスタック合算前に呼ばれるため同期がズレる。
-  // データから直接 max を求めて両軸に明示設定することで確実に一致させる。
+  // ── y / y2 の共通 max を計算（ロック時は固定値を使用）──
   let yMax = 0;
-  for (let i = 0; i < dispLen; i++) {
-    yMax = Math.max(yMax, (dispPrincipal[i] || 0) + (dispGain[i] || 0));
-    if (dispCrash) yMax = Math.max(yMax, dispCrash.p90[i] || 0);
+  if (yAxisLocked && yAxisLockedMax !== null) {
+    yMax = yAxisLockedMax;
+  } else {
+    for (let i = 0; i < dispLen; i++) {
+      yMax = Math.max(yMax, (dispPrincipal[i] || 0) + (dispGain[i] || 0) + (dispCushion ? (dispCushion[i] || 0) : 0));
+      if (dispCrash) yMax = Math.max(yMax, dispCrash.p90[i] || 0);
+    }
+    yMax = Math.max(yMax, 100) * 1.06;
+    if (!yAxisLocked) yAxisLockedMax = yMax; // ロック用に現在値を保存
   }
-  yMax = Math.max(yMax, 100) * 1.06; // 6% 余白
 
-  // データセット構成（index）: 0: 累積元本, 1: 運用益, 2: 楽観, 3: 中央値, 4: 悲観
+  // データセット構成: 0:累積元本, 1:運用益, 2:現金クッション, 3:楽観, 4:中央値, 5:悲観
 
   if (chart) {
     chart.data.labels = dispAges;
-    chart.data.datasets[0].data = dispPrincipal;
-    chart.data.datasets[1].data = dispGain;
-    // 暴落ラインの更新（index 2,3,4）
     const ds = chart.data.datasets;
+    ds[0].data = dispPrincipal;
+    ds[1].data = dispGain;
+    ds[2].data = dispCushion || [];
+    ds[2].hidden = !dispCushion;
     if (dispCrash) {
-      ds[2].data = dispCrash.p90; ds[2].hidden = false;
-      ds[3].data = dispCrash.p50; ds[3].hidden = false;
-      ds[4].data = dispCrash.p10; ds[4].hidden = false;
+      ds[3].data = dispCrash.p90; ds[3].hidden = false;
+      ds[4].data = dispCrash.p50; ds[4].hidden = false;
+      ds[5].data = dispCrash.p10; ds[5].hidden = false;
     } else {
-      ds[2].data = []; ds[2].hidden = true;
       ds[3].data = []; ds[3].hidden = true;
       ds[4].data = []; ds[4].hidden = true;
+      ds[5].data = []; ds[5].hidden = true;
     }
     chart.options.scales.y.max  = yMax;
     chart.options.scales.y2.max = yMax;
@@ -2034,6 +2156,8 @@ function updateChart(ages, principalData, gainData, target4pct, targetShort, fir
             backgroundColor: 'rgba(56,139,253,0.75)', borderWidth: 0, stack: 'assets', order: 1 },
           { label: '運用益',   data: dispGain,
             backgroundColor: 'rgba(45,212,191,0.70)', borderWidth: 0, stack: 'assets', order: 1 },
+          { label: '現金クッション', data: dispCushion || [], hidden: !dispCushion,
+            backgroundColor: 'rgba(210,153,34,0.80)', borderWidth: 0, stack: 'assets', order: 1 },
           ...makeCrashDatasets()
         ]
       },
@@ -2047,28 +2171,34 @@ function updateChart(ages, principalData, gainData, target4pct, targetShort, fir
               title: items => `${items[0].label}歳`,
               label: item => {
                 const ds = item.chart.data.datasets;
+                if (item.datasetIndex === 2 && !ds[2].hidden) {
+                  return `  現金クッション: ${formatMan(item.raw)}`;
+                }
                 if (item.datasetIndex === 1) {
                   const p = ds[0].data[item.dataIndex] || 0;
                   const g = item.raw || 0;
+                  const c = !ds[2].hidden ? (ds[2].data[item.dataIndex] || 0) : 0;
                   const lines = [
                     `  元本: ${formatMan(p)}`,
                     `  運用益: ${formatMan(g)}`,
-                    `  合計: ${formatMan(p + g)}`
+                    `  投資合計: ${formatMan(p + g)}`,
+                    ...(c > 0 ? [`  総資産(+クッション): ${formatMan(p + g + c)}`] : [])
                   ];
                   return lines;
                 }
-                if (item.datasetIndex === 2 && !ds[2].hidden)
-                  return `  楽観(90%): ${formatMan(item.raw)}`;
                 if (item.datasetIndex === 3 && !ds[3].hidden)
-                  return `  中央値(50%): ${formatMan(item.raw)}`;
+                  return `  楽観(90%): ${formatMan(item.raw)}`;
                 if (item.datasetIndex === 4 && !ds[4].hidden)
+                  return `  中央値(50%): ${formatMan(item.raw)}`;
+                if (item.datasetIndex === 5 && !ds[5].hidden)
                   return `  悲観(10%): ${formatMan(item.raw)}`;
                 return null;
               },
               filter: item => {
                 const ds = item.chart.data.datasets;
                 if (item.datasetIndex === 1) return true;
-                if ([2,3,4].includes(item.datasetIndex) && !ds[item.datasetIndex].hidden) return true;
+                if (item.datasetIndex === 2 && !ds[2].hidden) return true;
+                if ([3,4,5].includes(item.datasetIndex) && !ds[item.datasetIndex].hidden) return true;
                 return false;
               }
             },
@@ -2180,9 +2310,12 @@ function updateAssetTable(rows, fireAge, fullFireAge) {
     const cfCls = r.cashflow    >= 0 ? 'pos right' : 'neg right';
     const acCls = r.assetChange >= 0 ? 'pos right' : 'neg right';
     const label = r.isFire ? ' 🔥' : r.isFullFire ? ' ✅' : r.isPension ? ' 🎌' : '';
+    const cushionCell = cushionEnabled
+      ? `<td class="right" style="color:var(--accent-orange)">${fmtNum(r.cushion)}</td>`
+      : '';
     return `<tr class="${cls}">
       <td>${r.age}歳${label}<div style="font-size:10px;color:var(--text-muted);font-weight:400;">${r.year}年</div></td>
-      <td class="num">${fmtNum(r.asset)}</td>
+      <td class="num">${fmtNum(r.asset)}${cushionEnabled ? `<div style="font-size:9px;color:var(--accent-orange)">+${fmtNum(r.cushion)}</div>` : ''}</td>
       <td class="right">${fmtNum(r.income)}</td>
       <td class="right">${dash(r.savings)}</td>
       <td class="right">${fmtNum(r.expense)}</td>
