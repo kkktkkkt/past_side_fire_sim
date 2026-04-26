@@ -1789,12 +1789,13 @@ function simulate() {
 
     // 現金クッション処理
     if (cushionEnabled && cushionTargetVal > 0) {
-      if (effectiveReturnRate < 0 && effectiveCashflow < 0) {
-        // マイナス年: クッションから補填し投資資産の売却を抑制
+      if (effectiveCashflow < 0) {
+        // CFがマイナスなら株価に関わらずクッションから補填（投資資産を守る）
         const fromCushion = Math.min(cashCushion, -effectiveCashflow);
         cashCushion      -= fromCushion;
         effectiveCashflow += fromCushion;
-      } else if (effectiveReturnRate >= 0 && cashCushion < cushionTargetVal) {
+      }
+      if (effectiveReturnRate >= 0 && cashCushion < cushionTargetVal) {
         // プラス年: リターン規模に応じた上限で段階的補充
         const annualExpForCushion = monthlyExpense * 12;
         const replenishCap = effectiveReturnRate >= 0.15
