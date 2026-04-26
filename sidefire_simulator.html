@@ -320,6 +320,22 @@
   .radio-item.selected { border-color: rgba(56,139,253,0.5); background: rgba(56,139,253,0.08); color: var(--text-primary); }
   tbody tr.fullfire-row { background: rgba(248,81,73,0.07) !important; }
   tbody tr.fullfire-row td:first-child { color: var(--accent-red); }
+
+  /* ── Tabs ── */
+  .tab-bar {
+    display: flex; border-bottom: 2px solid var(--border);
+    background: var(--bg-secondary); padding: 0 20px; flex-shrink: 0;
+  }
+  .tab-btn {
+    padding: 12px 22px; font-size: 13px; font-weight: 500; font-family: inherit;
+    background: none; border: none; color: var(--text-muted); cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+    transition: color 0.15s, border-color 0.15s; white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--text-secondary); }
+  .tab-btn-active { color: var(--accent-blue) !important; border-bottom-color: var(--accent-blue) !important; }
+  .tab-content { display: none; flex: 1; flex-direction: column; gap: 16px; padding: 20px 24px; overflow-y: auto; min-height: 0; }
+  .tab-content.active { display: flex; }
 </style>
 </head>
 <body>
@@ -411,12 +427,24 @@
         </div>
         <input type="range" id="fullFireAge" min="31" max="80" value="65" step="1">
       </div>
+      <div style="padding:10px 12px;background:rgba(56,139,253,0.07);border:1px solid rgba(56,139,253,0.22);border-radius:8px;margin-bottom:14px;">
+        <div class="slider-label-row" style="margin-bottom:7px;">
+          <label style="color:var(--accent-blue);font-weight:600;font-size:12px;">📅 シミュレーション開始年</label>
+          <span class="slider-value" id="simStartYearVal" style="min-width:58px;">2000年</span>
+        </div>
+        <input type="range" id="simStartYearSlider" min="1928" max="2024" value="2000" step="1">
+        <div style="font-size:10px;color:var(--text-muted);margin-top:5px;line-height:1.6;">
+          この年を現在年齢の起点として実績データを使用<br>
+          <span style="color:rgba(56,139,253,0.85);">「S&amp;P500 過去データ」タブで市況を確認</span>
+        </div>
+      </div>
       <div class="slider-group">
         <div class="slider-label-row">
-          <label>年間利回り</label>
+          <label>年間利回り <span id="futureYearBadge" style="font-size:9px;background:rgba(56,139,253,0.15);color:var(--accent-blue);padding:2px 6px;border-radius:3px;margin-left:4px;white-space:nowrap;"></span></label>
           <span class="slider-value" id="returnRateVal">5.0%</span>
         </div>
         <input type="range" id="returnRate" min="0" max="150" value="50" step="1">
+        <div style="font-size:10px;color:var(--text-muted);margin-top:3px;">過去実績のない年（未来）の予測利回り</div>
       </div>
       <div class="form-group">
         <label>取り崩し時の税金（20%）</label>
@@ -551,7 +579,16 @@
   </aside>
 
   <!-- ==================== Content ==================== -->
-  <main class="content">
+  <main class="content" style="padding:0;gap:0;overflow:hidden;flex-direction:column;">
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <button id="tabBtnSim"   class="tab-btn tab-btn-active" onclick="switchTab('sim')">📊 シミュレーション</button>
+      <button id="tabBtnSp500" class="tab-btn"               onclick="switchTab('sp500')">📈 S&amp;P500 過去データ</button>
+    </div>
+
+    <!-- ==================== Simulation Tab ==================== -->
+    <div id="tab-sim" class="tab-content active">
 
     <!-- Result cards -->
     <div class="cards-row">
@@ -633,6 +670,56 @@
       <div class="table-title">資産推移明細</div>
       <div class="asset-table-wrap" id="asset-table-container"></div>
     </div>
+
+    </div><!-- end #tab-sim -->
+
+    <!-- ==================== SP500 Tab ==================== -->
+    <div id="tab-sp500" class="tab-content">
+
+      <div class="chart-panel">
+        <div class="chart-panel-header" style="flex-wrap:wrap;gap:10px;">
+          <div>
+            <div class="chart-title">S&amp;P 500 年間リターン推移（1928〜2024）</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">配当再投資込みの総リターン ／ 縦点線 = 選択中のシミュレーション開始年</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);"><div style="width:12px;height:12px;background:rgba(46,160,67,0.8);border-radius:2px;"></div>プラス年</div>
+            <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);"><div style="width:12px;height:12px;background:rgba(248,81,73,0.8);border-radius:2px;"></div>マイナス年</div>
+            <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);"><div style="width:20px;height:2px;background:rgba(210,153,34,0.9);"></div>長期平均（約10.5%）</div>
+          </div>
+        </div>
+        <div class="chart-container" style="height:400px;">
+          <canvas id="sp500Chart"></canvas>
+        </div>
+      </div>
+
+      <div class="table-panel">
+        <div class="table-title">主要な市場暴落イベント</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left;">出来事</th>
+              <th>期間</th>
+              <th>最大下落幅</th>
+              <th>S&amp;P500回復期間</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>大恐慌</td><td class="right">1929〜1932年</td><td class="neg">−86%</td><td class="right">約25年</td></tr>
+            <tr><td>石油ショック</td><td class="right">1973〜1974年</td><td class="neg">−48%</td><td class="right">約7年</td></tr>
+            <tr><td>ブラックマンデー</td><td class="right">1987年</td><td class="neg">−34%</td><td class="right">約2年</td></tr>
+            <tr><td>ITバブル崩壊</td><td class="right">2000〜2002年</td><td class="neg">−49%</td><td class="right">約7年</td></tr>
+            <tr><td>リーマンショック</td><td class="right">2008〜2009年</td><td class="neg">−57%</td><td class="right">約5〜6年</td></tr>
+            <tr><td>コロナショック</td><td class="right">2020年</td><td class="neg">−34%</td><td class="right">約6ヶ月</td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:8px;line-height:1.7;">
+          S&amp;P500年間リターン（配当再投資込み）の長期平均は約10〜11%。短期的な暴落も長期では回復する傾向があります。<br>
+          ※ 下落幅はピーク時からの最大下落率（ピーク・トゥ・トラフ）で、年間リターンとは異なる場合があります。
+        </div>
+      </div>
+
+    </div><!-- end #tab-sp500 -->
 
   </main>
 </div>
@@ -781,10 +868,51 @@ const EDU_DEFAULTS = {
   univ:       { national: 61, private_lib: 120, private_sci: 138 }
 };
 
+// ============================================================
+//  S&P 500 過去年間リターンデータ（配当再投資込み総リターン %）
+//  出典: Damodaran Online / Ibbotson Associates
+// ============================================================
+const SP500_ANNUAL_RETURNS = {
+  1928:43.6, 1929:-8.4,  1930:-24.9, 1931:-43.3, 1932:-8.6,
+  1933:53.1, 1934:-2.3,  1935:47.2,  1936:33.9,  1937:-35.1,
+  1938:31.1, 1939:-0.9,  1940:-10.1, 1941:-12.1, 1942:20.3,
+  1943:26.0, 1944:19.8,  1945:36.4,  1946:-8.1,  1947:5.7,
+  1948:5.5,  1949:18.4,  1950:30.8,  1951:24.0,  1952:18.4,
+  1953:-1.1, 1954:52.4,  1955:32.6,  1956:7.4,   1957:-10.5,
+  1958:43.7, 1959:12.0,  1960:0.5,   1961:26.9,  1962:-8.7,
+  1963:22.8, 1964:16.5,  1965:12.4,  1966:-10.1, 1967:24.0,
+  1968:11.1, 1969:-8.5,  1970:4.0,   1971:14.3,  1972:19.0,
+  1973:-14.7,1974:-26.5, 1975:37.2,  1976:23.8,  1977:-7.2,
+  1978:6.6,  1979:18.4,  1980:32.4,  1981:-4.9,  1982:21.4,
+  1983:22.5, 1984:6.3,   1985:32.2,  1986:18.5,  1987:5.2,
+  1988:16.8, 1989:31.5,  1990:-3.1,  1991:30.5,  1992:7.6,
+  1993:10.1, 1994:1.3,   1995:37.6,  1996:23.0,  1997:33.4,
+  1998:28.6, 1999:21.0,  2000:-9.1,  2001:-11.9, 2002:-22.1,
+  2003:28.7, 2004:10.9,  2005:4.9,   2006:15.8,  2007:5.5,
+  2008:-37.0,2009:26.5,  2010:15.1,  2011:2.1,   2012:16.0,
+  2013:32.4, 2014:13.7,  2015:1.4,   2016:12.0,  2017:21.8,
+  2018:-4.4, 2019:31.5,  2020:18.4,  2021:28.7,  2022:-18.1,
+  2023:26.3, 2024:23.3
+};
+
+const CRASH_EVENTS = [
+  { start:1929, end:1932, label:'大恐慌',           color:'rgba(248,81,73,0.20)'  },
+  { start:1973, end:1974, label:'石油ショック',     color:'rgba(210,153,34,0.20)' },
+  { start:1987, end:1987, label:'ブラックマンデー', color:'rgba(210,153,34,0.20)' },
+  { start:2000, end:2002, label:'ITバブル崩壊',     color:'rgba(248,81,73,0.20)'  },
+  { start:2008, end:2009, label:'リーマンショック', color:'rgba(248,81,73,0.20)'  },
+  { start:2020, end:2020, label:'コロナショック',   color:'rgba(210,153,34,0.20)' },
+];
+
+const CURRENT_YEAR = 2026;
+
 let children = [];
 let childIdCounter = 0;
 let chart = null;
-let chartMaxAge = 100;  // グラフ表示終了年齢
+let sp500ChartObj = null;
+let chartMaxAge = 100;
+let simStartYear = 2000;
+let chartCurrentAge = 41;
 const STORAGE_KEY = 'sidefire_v2';
 
 // ============================================================
@@ -821,6 +949,7 @@ function saveToStorage() {
       recoveryEnabled: recoveryEnabled,
       recoveryYears:   document.getElementById('recoveryYears').value,
       chartMaxAge:  chartMaxAge,
+      simStartYear: simStartYear,
       children:       children
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -883,6 +1012,15 @@ function loadFromStorage() {
       if (slider) {
         slider.value = chartMaxAge;
         document.getElementById('chartMaxAgeVal').textContent = `${chartMaxAge}歳まで`;
+      }
+    }
+    if (d.simStartYear !== undefined) {
+      simStartYear = +d.simStartYear;
+      const ssy = document.getElementById('simStartYearSlider');
+      if (ssy) {
+        ssy.value = simStartYear;
+        document.getElementById('simStartYearVal').textContent = `${simStartYear}年`;
+        updateFutureYearBadge(simStartYear);
       }
     }
     if (Array.isArray(d.children) && d.children.length > 0) {
@@ -1317,6 +1455,148 @@ function calcAfterTaxIncome(grossMan) {
 }
 
 // ============================================================
+//  過去データ連動ヘルパー
+// ============================================================
+function getReturnRateForYear(year, futureRate) {
+  if (year <= CURRENT_YEAR && SP500_ANNUAL_RETURNS[year] !== undefined) {
+    return SP500_ANNUAL_RETURNS[year] / 100;
+  }
+  return futureRate;
+}
+
+function ageToYear(age, startYear, curAge) {
+  return startYear + (age - curAge);
+}
+
+function updateFutureYearBadge(startYear) {
+  const badge = document.getElementById('futureYearBadge');
+  if (!badge) return;
+  badge.textContent = `${CURRENT_YEAR + 1}年以降に適用`;
+}
+
+function switchTab(tabName) {
+  const simEl    = document.getElementById('tab-sim');
+  const sp500El  = document.getElementById('tab-sp500');
+  const btnSim   = document.getElementById('tabBtnSim');
+  const btnSp500 = document.getElementById('tabBtnSp500');
+  if (tabName === 'sim') {
+    simEl.classList.add('active');    sp500El.classList.remove('active');
+    btnSim.classList.add('tab-btn-active'); btnSp500.classList.remove('tab-btn-active');
+  } else {
+    sp500El.classList.add('active');  simEl.classList.remove('active');
+    btnSp500.classList.add('tab-btn-active'); btnSim.classList.remove('tab-btn-active');
+    renderSP500Chart();
+  }
+}
+
+// ============================================================
+//  SP500 参照チャート
+// ============================================================
+function renderSP500Chart() {
+  const ctx = document.getElementById('sp500Chart');
+  if (!ctx) return;
+
+  const years   = Object.keys(SP500_ANNUAL_RETURNS).map(Number);
+  const returns = Object.values(SP500_ANNUAL_RETURNS);
+  const colors  = returns.map(r => r >= 0 ? 'rgba(46,160,67,0.80)' : 'rgba(248,81,73,0.80)');
+
+  // クラッシュイベントのアノテーション
+  const crashAnn = {};
+  CRASH_EVENTS.forEach((ev, i) => {
+    crashAnn[`crash${i}`] = {
+      type: 'box',
+      xMin: String(ev.start), xMax: String(ev.end),
+      yMin: -55, yMax: 60,
+      backgroundColor: ev.color,
+      borderWidth: 0,
+      label: {
+        display: true, content: ev.label,
+        position: { x: 'center', y: 'start' },
+        color: 'rgba(230,237,243,0.9)', font: { size: 10, weight: 'bold' },
+        backgroundColor: 'transparent', padding: { y: 4 }
+      }
+    };
+  });
+
+  // 選択中のシミュレーション開始年マーカー
+  crashAnn.simYearLine = {
+    type: 'line',
+    xMin: String(simStartYear), xMax: String(simStartYear),
+    borderColor: 'rgba(56,139,253,0.9)', borderWidth: 2, borderDash: [5, 4],
+    label: {
+      display: true, content: `開始: ${simStartYear}年`,
+      position: 'end', color: 'rgba(56,139,253,1)',
+      font: { size: 10, weight: 'bold' },
+      backgroundColor: 'rgba(13,17,23,0.85)', padding: { x: 4, y: 2 }
+    }
+  };
+
+  // 長期平均リターン横線
+  crashAnn.avgLine = {
+    type: 'line',
+    yMin: 10.5, yMax: 10.5,
+    borderColor: 'rgba(210,153,34,0.9)', borderWidth: 1.5, borderDash: [6, 4],
+    label: {
+      display: true, content: '平均 10.5%', position: 'end',
+      color: 'rgba(210,153,34,1)', font: { size: 9 },
+      backgroundColor: 'rgba(13,17,23,0.7)', padding: { x: 3, y: 1 }
+    }
+  };
+
+  if (sp500ChartObj) {
+    sp500ChartObj.options.plugins.annotation.annotations.simYearLine.xMin = String(simStartYear);
+    sp500ChartObj.options.plugins.annotation.annotations.simYearLine.xMax = String(simStartYear);
+    sp500ChartObj.options.plugins.annotation.annotations.simYearLine.label.content = `開始: ${simStartYear}年`;
+    sp500ChartObj.update('none');
+    return;
+  }
+
+  sp500ChartObj = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: years.map(String),
+      datasets: [{
+        data: returns, backgroundColor: colors, borderWidth: 0,
+        barPercentage: 0.9, categoryPercentage: 1.0
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => `${items[0].label}年`,
+            label: item => `  年間リターン: ${item.raw >= 0 ? '+' : ''}${item.raw.toFixed(1)}%`
+          },
+          backgroundColor: 'rgba(22,27,34,0.95)', borderColor: 'rgba(48,54,61,0.8)', borderWidth: 1,
+          titleColor: '#e6edf3', bodyColor: '#8b949e', padding: 10, cornerRadius: 8
+        },
+        annotation: { annotations: crashAnn }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(48,54,61,0.3)', drawTicks: false },
+          ticks: {
+            color: '#656d76', font: { size: 9 }, maxRotation: 0,
+            callback: function(val) {
+              const y = parseInt(this.getLabelForValue(val));
+              return y % 10 === 0 ? `${y}` : '';
+            }
+          },
+          border: { color: 'rgba(48,54,61,0.5)' }
+        },
+        y: {
+          grid: { color: 'rgba(48,54,61,0.4)' },
+          ticks: { color: '#656d76', font: { size: 10 }, callback: v => `${v}%` },
+          border: { color: 'rgba(48,54,61,0.5)' }
+        }
+      }
+    }
+  });
+}
+
+// ============================================================
 //  シミュレーション本体
 // ============================================================
 function simulate() {
@@ -1331,6 +1611,12 @@ function simulate() {
   const fullFireAge    = getNum('fullFireAge',      65);
   const returnRateRaw  = getNum('returnRate',      50);
   const returnRate     = returnRateRaw / 10 / 100;
+
+  const ssy = document.getElementById('simStartYearSlider');
+  simStartYear    = ssy ? +ssy.value : 2000;
+  chartCurrentAge = currentAge;
+  updateFutureYearBadge(simStartYear);
+
   const livingCostRatio65 = parseFloat(
     document.querySelector('input[name="livingCostRatio65"]:checked')?.value || '1.00'
   );
@@ -1369,6 +1655,8 @@ function simulate() {
 
   for (let age = currentAge; age <= endAge; age++) {
     ages.push(age);
+    const calYear             = ageToYear(age, simStartYear, currentAge);
+    const effectiveReturnRate = getReturnRateForYear(calYear, returnRate);
     const eduCost = getEduCostForYear(age, currentAge);
 
     // 65歳以降は生活費割合を適用
@@ -1410,8 +1698,8 @@ function simulate() {
 
     // 資産更新（年複利）
     const prevAsset = asset;
-    const investmentReturn = Math.round(prevAsset * returnRate);  // 今年の利回り益
-    asset = asset * (1 + returnRate) + effectiveCashflow;
+    const investmentReturn = Math.round(prevAsset * effectiveReturnRate);
+    asset = asset * (1 + effectiveReturnRate) + effectiveCashflow;
     if (asset < 0) asset = 0;
     const assetChange = Math.round(asset - prevAsset);  // 前年比（利回り＋収支）
 
@@ -1439,6 +1727,7 @@ function simulate() {
       : Math.round(effectiveCashflow);
     tableRows.push({
       age,
+      year: calYear,
       asset:            Math.round(asset),
       income:           Math.round(income),
       expense:          Math.round(effectiveExpense),
@@ -1651,6 +1940,22 @@ function updateChart(ages, principalData, gainData, target4pct, targetShort, fir
 
   const annotations = buildAnnotations(dispAges, target4pct, targetShort, fireAge, fullFireAge, currentAge);
 
+  // 過去/未来の境界線
+  const pastEndIdx = dispAges.findIndex(a => ageToYear(a, simStartYear, currentAge) > CURRENT_YEAR);
+  if (pastEndIdx > 0) {
+    annotations.pastFutureLine = {
+      type: 'line',
+      xMin: pastEndIdx - 0.5, xMax: pastEndIdx - 0.5,
+      borderColor: 'rgba(56,139,253,0.65)', borderWidth: 1.5, borderDash: [4, 4],
+      label: {
+        display: true, content: '← 実績 | 予測 →',
+        position: 'end', color: 'rgba(56,139,253,0.9)',
+        font: { size: 9, weight: 'bold' },
+        backgroundColor: 'rgba(13,17,23,0.8)', padding: { x: 4, y: 2 }
+      }
+    };
+  }
+
   // ── y / y2 の共通 max を手動計算（syncAxes プラグイン廃止）──
   // afterDataLimits はスタック合算前に呼ばれるため同期がズレる。
   // データから直接 max を求めて両軸に明示設定することで確実に一致させる。
@@ -1747,7 +2052,9 @@ function updateChart(ages, principalData, gainData, target4pct, targetShort, fir
               color: '#656d76', font: { size: 10 }, maxRotation: 0,
               callback: function(val) {
                 const age = this.getLabelForValue(val);
-                return age % 5 === 0 ? `${age}歳` : '';
+                if (age % 5 !== 0) return '';
+                const yr = ageToYear(age, simStartYear, chartCurrentAge);
+                return [`${age}歳`, `${yr}年`];
               }
             },
             border: { color: 'rgba(48,54,61,0.6)' }
@@ -1839,7 +2146,7 @@ function updateAssetTable(rows, fireAge, fullFireAge) {
     const acCls = r.assetChange >= 0 ? 'pos right' : 'neg right';
     const label = r.isFire ? ' 🔥' : r.isFullFire ? ' ✅' : r.isPension ? ' 🎌' : '';
     return `<tr class="${cls}">
-      <td>${r.age}歳${label}</td>
+      <td>${r.age}歳${label}<div style="font-size:10px;color:var(--text-muted);font-weight:400;">${r.year}年</div></td>
       <td class="num">${fmtNum(r.asset)}</td>
       <td class="right">${fmtNum(r.income)}</td>
       <td class="right">${dash(r.savings)}</td>
@@ -1902,6 +2209,13 @@ document.getElementById('returnRate').addEventListener('input', function() {
   document.getElementById('returnRateVal').textContent = `${(this.value / 10).toFixed(1)}%`;
   simulate();
 });
+document.getElementById('simStartYearSlider').addEventListener('input', function() {
+  simStartYear = +this.value;
+  document.getElementById('simStartYearVal').textContent = `${this.value}年`;
+  updateFutureYearBadge(simStartYear);
+  if (sp500ChartObj) renderSP500Chart();
+  simulate();
+});
 
 ['currentAge','currentAssets','annualIncome','monthlySavings','monthlyExpense','sideIncome','pension']
   .forEach(id => {
@@ -1922,6 +2236,7 @@ function onRadioChange() {
 //  初期化
 // ============================================================
 (function init() {
+  updateFutureYearBadge(simStartYear);
   syncFireSliderMin();
 
   // localStorage から復元、なければデフォルト2名
