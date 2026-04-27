@@ -1797,6 +1797,8 @@ function simulate() {
   const target4pct   = annualExpense * 25 * taxFactor;
   const shortfallAnn = Math.max(0, (monthlyExpense - sideIncomeM) * 12);
   const targetShort  = shortfallAnn > 0 ? shortfallAnn * 25 * taxFactor : 0;
+  // 危機モード発動閾値は税抜き（税はCF計算で既に処理済み。閾値に掛けると二重適用になる）
+  const targetShortCrisis = shortfallAnn > 0 ? shortfallAnn * 25 : 0;
 
   const endAge = 100;
   const cushionTargetVal = cushionEnabled ? getNum('cushionTarget', 200) : 0;
@@ -1824,7 +1826,8 @@ function simulate() {
     const eduCost = getEduCostForYear(age, currentAge);
 
     // 危機モード判定（FIRE後 かつ 資産がSideFIRE目標を下回っている）
-    const inCrisis = crisisEnabled && age >= fireAge && targetShort > 0 && asset < targetShort;
+    // 閾値はtaxFactor未適用のtargetShortCrisisを使う（税はCF計算で処理済み・二重適用防止）
+    const inCrisis = crisisEnabled && age >= fireAge && targetShortCrisis > 0 && asset < targetShortCrisis;
     const yearMonthlyExpense  = inCrisis ? crisisExpenseM    : monthlyExpense;
     const yearSideIncomeM     = inCrisis ? crisisSideIncomeM : sideIncomeM;
     const yearAnnualExpense   = yearMonthlyExpense * 12;
