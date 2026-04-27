@@ -489,6 +489,41 @@
         </div>
       </div>
       <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px;">⚡ 危機時自動調整</label>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+          <div id="crisisToggle" onclick="toggleCrisis()"
+               style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+            <div id="crisisIndicator" style="width:36px;height:20px;border-radius:10px;background:var(--bg-tertiary);border:1px solid var(--border-light);position:relative;transition:background 0.2s;">
+              <div id="crisisThumb" style="position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--text-muted);transition:all 0.2s;"></div>
+            </div>
+            <span id="crisisLabel" style="font-size:12px;color:var(--text-secondary);">OFF</span>
+          </div>
+        </div>
+        <div id="crisisControls" style="display:none;margin-top:8px;">
+          <div style="font-size:10px;color:var(--accent-blue);margin-bottom:6px;line-height:1.5;">
+            発動: SP500資産 ＜ SideFIRE目標額<br>
+            回復: SP500資産 ≥ SideFIRE目標額 → 元の設定に自動復帰
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <label style="font-size:12px;color:var(--text-secondary);flex:1;">生活費削減</label>
+            <input type="number" id="crisisExpense" value="38" min="10" max="100" step="1"
+              oninput="simulate()"
+              style="width:60px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);padding:4px 8px;border-radius:4px;font-size:13px;text-align:right;">
+            <span style="font-size:12px;color:var(--text-muted);">万/月</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <label style="font-size:12px;color:var(--text-secondary);flex:1;">副収入増加</label>
+            <input type="number" id="crisisSideIncome" value="20" min="0" max="100" step="1"
+              oninput="simulate()"
+              style="width:60px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);padding:4px 8px;border-radius:4px;font-size:13px;text-align:right;">
+            <span style="font-size:12px;color:var(--text-muted);">万/月</span>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);line-height:1.5;">
+            明細テーブルの⚡行が危機モード発動年
+          </div>
+        </div>
+      </div>
+      <div class="form-group">
         <label style="display:flex;align-items:center;gap:6px;">
           暴落シミュレーション
           <span style="font-size:10px;color:var(--accent-orange);">モンテカルロ</span>
@@ -1268,6 +1303,7 @@ function getEduCostForYear(year, currentAge) {
 // ============================================================
 let withdrawalTaxEnabled = false;
 let cushionEnabled = false;
+let crisisEnabled  = false;
 let crashEnabled = false;
 let yAxisLocked = false;
 let yAxisLockedMax = null;
@@ -1315,6 +1351,30 @@ function syncChartMaxAgeSlider(currentAge) {
     document.getElementById('chartMaxAgeVal').textContent = `${minAge}歳まで`;
   }
   slider.value = chartMaxAge;
+}
+
+function toggleCrisis() {
+  crisisEnabled = !crisisEnabled;
+  const ind   = document.getElementById('crisisIndicator');
+  const thumb = document.getElementById('crisisThumb');
+  const lbl   = document.getElementById('crisisLabel');
+  const ctrl  = document.getElementById('crisisControls');
+  if (crisisEnabled) {
+    ind.style.background = 'var(--accent-blue)';
+    thumb.style.left     = '18px';
+    thumb.style.background = '#fff';
+    lbl.textContent      = 'ON';
+    lbl.style.color      = 'var(--accent-blue)';
+    ctrl.style.display   = 'block';
+  } else {
+    ind.style.background = 'var(--bg-tertiary)';
+    thumb.style.left     = '2px';
+    thumb.style.background = 'var(--text-muted)';
+    lbl.textContent      = 'OFF';
+    lbl.style.color      = 'var(--text-secondary)';
+    ctrl.style.display   = 'none';
+  }
+  simulate();
 }
 
 function toggleCrash() {
@@ -1745,16 +1805,27 @@ function simulate() {
   let achieve4Age     = null;
   let achieveShortAge = null;
 
+  // 危機時設定値（FIRE後に資産がSideFIRE目標を割ったら適用）
+  const crisisExpenseM    = crisisEnabled ? getNum('crisisExpense',    38) : monthlyExpense;
+  const crisisSideIncomeM = crisisEnabled ? getNum('crisisSideIncome', 20) : sideIncomeM;
+
   for (let age = currentAge; age <= endAge; age++) {
     ages.push(age);
     const calYear             = ageToYear(age, simStartYear, currentAge);
     const effectiveReturnRate = getReturnRateForYear(calYear, returnRate);
     const eduCost = getEduCostForYear(age, currentAge);
 
+    // 危機モード判定（FIRE後 かつ 資産がSideFIRE目標を下回っている）
+    const inCrisis = crisisEnabled && age >= fireAge && targetShort > 0 && asset < targetShort;
+    const yearMonthlyExpense  = inCrisis ? crisisExpenseM    : monthlyExpense;
+    const yearSideIncomeM     = inCrisis ? crisisSideIncomeM : sideIncomeM;
+    const yearAnnualExpense   = yearMonthlyExpense * 12;
+    const yearAnnualSideIncome = yearSideIncomeM * 12;
+
     // 65歳以降は生活費割合を適用
-    const effectiveExpense = age >= 65 ? annualExpense * livingCostRatio65 : annualExpense;
+    const effectiveExpense = age >= 65 ? yearAnnualExpense * livingCostRatio65 : yearAnnualExpense;
     // 完全FIRE年齢以降は副収入=0
-    const effectiveSideIncome = age < fullFireAge ? annualSideIncome : 0;
+    const effectiveSideIncome = age < fullFireAge ? yearAnnualSideIncome : 0;
 
     let annualCashflow;
     let principalAddition = 0;
@@ -1764,6 +1835,7 @@ function simulate() {
       // 収入で生活費・教育費をまかなえない分だけ資産を取り崩す
       const livingDeficit = Math.max(0, effectiveExpense + eduCost - afterTaxIncome);
       annualCashflow    = annualSavings - livingDeficit;
+      // ※ FIRE前は危機モード非適用なのでyearAnnualExpense=annualExpense
       principalAddition = annualSavings; // 元本は積立額のみで増加（マイナスにしない）
       // ※ 資産がクリップにより元本を下回ったとき、利益から先に消費される
 
@@ -1851,6 +1923,7 @@ function simulate() {
     tableRows.push({
       age,
       year: calYear,
+      inCrisis,
       asset:            Math.round(asset),
       cushion:          Math.round(cashCushion),
       cushionDrawn:     Math.round(cushionDrawn),
@@ -2321,10 +2394,10 @@ function updateAssetTable(rows, fireAge, fullFireAge) {
   const dash    = v => (v > 0 ? fmtNum(v) : '―');
 
   const trs = rows.map(r => {
-    const cls   = r.isFire ? 'fire-row' : r.isFullFire ? 'fullfire-row' : r.isPension ? 'pension-row' : '';
+    const cls   = r.inCrisis ? 'fullfire-row' : r.isFire ? 'fire-row' : r.isFullFire ? 'fullfire-row' : r.isPension ? 'pension-row' : '';
     const cfCls = r.cashflow    >= 0 ? 'pos right' : 'neg right';
     const acCls = r.assetChange >= 0 ? 'pos right' : 'neg right';
-    const label = r.isFire ? ' 🔥' : r.isFullFire ? ' ✅' : r.isPension ? ' 🎌' : '';
+    const label = r.inCrisis ? ' ⚡' : r.isFire ? ' 🔥' : r.isFullFire ? ' ✅' : r.isPension ? ' 🎌' : '';
     const cushionMovement = cushionEnabled
       ? (() => {
           const drawn = r.cushionDrawn || 0;
