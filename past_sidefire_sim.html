@@ -33,11 +33,13 @@
     --radius-sm: 6px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { height: 100%; overflow: hidden; }
   body {
     font-family: 'Inter', 'Noto Sans JP', sans-serif;
     background: var(--bg-primary);
     color: var(--text-primary);
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
   }
@@ -505,14 +507,14 @@
             回復: SP500資産 ≥ SideFIRE目標額 → 元の設定に自動復帰
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <label style="font-size:12px;color:var(--text-secondary);flex:1;">生活費削減</label>
+            <label style="font-size:12px;color:var(--text-secondary);flex:1;">危機時の生活費 <span style="font-size:10px;color:var(--accent-blue);">（この金額に削減）</span></label>
             <input type="number" id="crisisExpense" value="38" min="10" max="100" step="1"
               oninput="simulate()"
               style="width:60px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);padding:4px 8px;border-radius:4px;font-size:13px;text-align:right;">
             <span style="font-size:12px;color:var(--text-muted);">万/月</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <label style="font-size:12px;color:var(--text-secondary);flex:1;">副収入増加</label>
+            <label style="font-size:12px;color:var(--text-secondary);flex:1;">危機時の副収入 <span style="font-size:10px;color:var(--accent-blue);">（この金額に増加）</span></label>
             <input type="number" id="crisisSideIncome" value="20" min="0" max="100" step="1"
               oninput="simulate()"
               style="width:60px;background:var(--bg-tertiary);border:1px solid var(--border);color:var(--text-primary);padding:4px 8px;border-radius:4px;font-size:13px;text-align:right;">
