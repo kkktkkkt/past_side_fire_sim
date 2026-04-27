@@ -943,6 +943,7 @@ let children = [];
 let childIdCounter = 0;
 let chart = null;
 let sp500ChartObj = null;
+let _chartTableRows = [];
 let chartMaxAge = 100;
 let simStartYear = 2000;
 let chartCurrentAge = 41;
@@ -1792,7 +1793,7 @@ function simulate() {
     let cushionAdded = 0;
     if (cushionEnabled && cushionTargetVal > 0) {
       if (effectiveCashflow < 0) {
-        // CFがマイナスなら株価に関わらずクッションから補填（投資資産を守る）
+        // CFがマイナスなら現金クッションを優先消費（シーケンス・オブ・リターンリスク回避）
         const fromCushion = Math.min(cashCushion, -effectiveCashflow);
         cashCushion      -= fromCushion;
         effectiveCashflow += fromCushion;
@@ -1924,6 +1925,7 @@ function simulate() {
     banner.textContent = existing + `　｜　⚠ 暴落シナリオ: 資産枯渇リスク ${ruinPct}%`;
   }
 
+  _chartTableRows = tableRows;
   updateChart(ages, principalData, gainData, target4pct, targetShort, fireAge, fullFireAge, currentAge, crashData, cushionData);
   updateEduTable(currentAge);
   updateAssetTable(tableRows, fireAge, fullFireAge);
@@ -2180,7 +2182,7 @@ function updateChart(ages, principalData, gainData, target4pct, targetShort, fir
                 const ds = item.chart.data.datasets;
                 if (item.datasetIndex === 2 && !ds[2].hidden) {
                   const lines = [`  現金クッション残高: ${formatMan(item.raw)}`];
-                  const row = tableRows[item.dataIndex];
+                  const row = _chartTableRows[item.dataIndex];
                   if (row) {
                     if (row.cushionDrawn > 0) lines.push(`  取崩し: -${formatMan(row.cushionDrawn)}`);
                     if (row.cushionAdded > 0) lines.push(`  補充: +${formatMan(row.cushionAdded)}`);
