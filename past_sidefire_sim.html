@@ -1792,9 +1792,11 @@ function simulate() {
   const annualSavings    = monthlySavings * 12;
 
   // 目標額（SideFIRE期間の不足分ベース）
-  const target4pct   = annualExpense * 25;
+  // 取り崩し税ONの場合、手取りX万を得るために X/0.8 の売却が必要 → 必要資産 = X * 25 / 0.8
+  const taxFactor    = withdrawalTaxEnabled ? (1 / 0.8) : 1;
+  const target4pct   = annualExpense * 25 * taxFactor;
   const shortfallAnn = Math.max(0, (monthlyExpense - sideIncomeM) * 12);
-  const targetShort  = shortfallAnn > 0 ? shortfallAnn * 25 : 0;
+  const targetShort  = shortfallAnn > 0 ? shortfallAnn * 25 * taxFactor : 0;
 
   const endAge = 100;
   const cushionTargetVal = cushionEnabled ? getNum('cushionTarget', 200) : 0;
@@ -1952,14 +1954,15 @@ function simulate() {
   const finalAsset = principalData.at(-1) + gainData.at(-1) + (cushionData.at(-1) || 0);
 
   // カード更新
+  const taxNote = withdrawalTaxEnabled ? '（税20%込）' : '';
   document.getElementById('card-target4').textContent = formatMan(target4pct);
   document.getElementById('card-target4-sub').textContent =
-    achieve4Age ? `${achieve4Age}歳で達成見込み` : '90歳までに未達成';
+    (achieve4Age ? `${achieve4Age}歳で達成見込み` : '90歳までに未達成') + taxNote;
 
   document.getElementById('card-targetShort').textContent = formatMan(targetShort);
   document.getElementById('card-targetShort-sub').textContent =
     targetShort === 0 ? '収入でカバー済み' :
-    (achieveShortAge ? `${achieveShortAge}歳で達成見込み` : '90歳までに未達成');
+    ((achieveShortAge ? `${achieveShortAge}歳で達成見込み` : '90歳までに未達成') + taxNote);
 
   document.getElementById('card-edu').textContent = formatMan(totalEdu);
   document.getElementById('card-final').textContent = formatMan(finalAsset);
